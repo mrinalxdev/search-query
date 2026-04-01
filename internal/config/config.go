@@ -34,9 +34,9 @@ func Load() *Config {
 	return &Config{
 		MinIO: MinIOConfig{
 			Endpoint:  getEnv("MINIO_ENDPOINT", "localhost:9000"),
-			AccessKey: getEnv("MINIO_ACCESS_KEY",
-			SecretKey: getEnv("MINIO_SECRET_KEY"),
-			Bucket:    getEnv("MINIO_BUCKET"),
+			AccessKey: getEnv("MINIO_ACCESS_KEY", "minioadmin"),
+			SecretKey: getEnv("MINIO_SECRET_KEY", "minioadmin123"),
+			Bucket:    getEnv("MINIO_BUCKET", "my-bucket"),
 			UseSSL:    getEnvBool("MINIO_USE_SSL", false),
 		},
 		DB: DBConfig{

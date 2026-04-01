@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MinIO API Test Page</title>
+</head>
+<body>
+    <h1>MinIO + Go API Test Page</h1>
+    <hr>
+    <h2>1. Health Check</h2>
+    <button onclick="checkHealth()">Check Health</button>
+    <pre id="health-result"></pre>
+    <hr>
+    <h2>2. Single File Upload (&lt; 10MB)</h2>
+    <input type="file" id="upload-file">
+    <button onclick="uploadFile()">Upload File</button>
+    <pre id="upload-result"></pre>
+    <hr>
+    <h2>3. Multipart Upload (Large Files)</h2>
+    <input type="text" id="multipart-filename" placeholder="filename.mp4" value="large-video.mp4">
+    <input type="number" id="multipart-size" placeholder="Total size in bytes" value="104857600">
+    <input type="number" id="multipart-partsize" placeholder="Part size in bytes" value="5242880">
+    <button onclick="initiateMultipart()">Initiate Multipart Upload</button>
+    <pre id="multipart-result"></pre>
+    <hr>
+    <h2>4. List All Files</h2>
+    <button onclick="listFiles()">List Files</button>
+    <pre id="list-result"></pre>
+    <hr>
+    <h2>5. Generate Presigned URL</h2>
+    <input type="text" id="presigned-objectname" placeholder="object-name">
+    <input type="number" id="presigned-expiry" placeholder="Expiry (minutes)" value="30">
+    <select id="presigned-method">
+        <option value="GET">GET (Download)</option>
+        <option value="PUT">PUT (Upload)</option>
+    </select>
+    <button onclick="generatePresignedURL()">Generate URL</button>
+    <pre id="presigned-result"></pre>
+    <hr>
+    <h2>6. Download File</h2>
+    <input type="text" id="download-objectname" placeholder="object-name">
+    <button onclick="downloadFile()">Download</button>
+    <pre id="download-result"></pre>
+    <hr>
+    <h2>7. Delete File</h2>
+    <input type="text" id="delete-objectname" placeholder="object-name">
+    <button onclick="deleteFile()">Delete</button>
+    <pre id="delete-result"></pre>
+    <hr>
+
+    <script>
+        const API_BASE = 'http://localhost:8080/api/v1';
+        function showResult(elementId, data) {
+            document.getElementById(elementId).textContent = JSON.stringify(data, null, 2);
+        }
+
+        async function checkHealth() {
+            try {
+                const response = await fetch('http://localhost:8080/health');
+                const data = await response.json();
+                showResult('health-result', data);
+            } catch (error) {
+                showResult('health-result', { error: error.message });
+            }
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('upload-file');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showResult('upload-result', { error: 'Please select a file' });
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch(`${API_BASE}/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                showResult('upload-result', data);
+            } catch (error) {
+                showResult('upload-result', { error: error.message });
+            }
+        }
+
+        async function initiateMultipart() {
+            const fileName = document.getElementById('multipart-filename').value;
+            const totalSize = document.getElementById('multipart-size').value;
+            const partSize = document.getElementById('multipart-partsize').value;
+
+            try {
+                const response = await fetch(`${API_BASE}/upload/multipart`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        file_name: fileName,
+                        total_size: parseInt(totalSize),
+                        part_size: parseInt(partSize),
+                        content_type: 'application/octet-stream'
+                    })
+                });
+                const data = await response.json();
+                showResult('multipart-result', data);
+            } catch (error) {
+                showResult('multipart-result', { error: error.message });
+            }
+        }
+
+        async function listFiles() {
+            try {
+                const response = await fetch(`${API_BASE}/files`);
+                const data = await response.json();
+                showResult('list-result', data);
+            } catch (error) {
+                showResult('list-result', { error: error.message });
+            }
+        }
+
+        async function generatePresignedURL() {
+            const objectName = document.getElementById('presigned-objectname').value;
+            const expiry = document.getElementById('presigned-expiry').value;
+            const method = document.getElementById('presigned-method').value;
+
+            if (!objectName) {
+                showResult('presigned-result', { error: 'Please enter object name' });
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/presigned`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        object_name: objectName,
+                        expiry: parseInt(expiry),
+                        method: method
+                    })
+                });
+                const data = await response.json();
+                showResult('presigned-result', data);
+            } catch (error) {
+                showResult('presigned-result', { error: error.message });
+            }
+        }
+
+        async function downloadFile() {
+            const objectName = document.getElementById('download-objectname').value;
+
+            if (!objectName) {
+                showResult('download-result', { error: 'Please enter object name' });
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/download/${objectName}`);
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    showResult('download-result', errorData);
+                    return;
+                }
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = objectName;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                showResult('download-result', { success: 'Download started' });
+            } catch (error) {
+                showResult('download-result', { error: error.message });
+            }
+        }
+
+        async function deleteFile() {
+            const objectName = document.getElementById('delete-objectname').value;
+
+            if (!objectName) {
+                showResult('delete-result', { error: 'Please enter object name' });
+                return;
+            }
+
+            if (!confirm(`Are you sure you want to delete "${objectName}"?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/files/${objectName}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                showResult('delete-result', data);
+            } catch (error) {
+                showResult('delete-result', { error: error.message });
+            }
+        }
+    </script>
+</body>
+</html>
